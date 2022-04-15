@@ -19,8 +19,28 @@ public struct Money {
     var amount : Int
     var currency : String
     
-    init(amount: Int, currency: String) {
+    init() {
+        self.amount = 0
+        self.currency = "USD"
+    }
+    
+    init(amount: Int) {
         self.amount = amount
+        self.currency = "USD"
+    }
+    
+    init(currency: String) {
+        self.amount = 0
+        self.currency = currency
+    }
+    
+    init(amount: Int, currency: String) {
+        
+        if(amount < 0) {
+            self.amount = 0
+        } else {
+            self.amount = amount
+        }
         if(currency == "GBP" || currency == "USD" || currency == "EUR" || currency == "CAN") {
             self.currency = currency
         } else {
@@ -52,32 +72,45 @@ public struct Money {
         // Convert other currencies to USD
         } else if(conversionCurrency == "USD"){
             switch self.currency {
-                case "GBP" : convertedAmt = convertUSD(self.amount)
-                case "EUR" : convertedAmt = convertUSD(self.amount)
-                case "CAN" : convertedAmt = convertUSD(self.amount)
+                case "GBP" : convertedAmt = self.amount * 2
+                case "EUR" : convertedAmt = Int(Double(self.amount) / 1.5)
+                case "CAN" : convertedAmt = Int(Double(self.amount) / 1.25)
                 default : convertedAmt = self.amount
             }
             return Money(amount: convertedAmt, currency: "USD")
         // Converting other currencies to each other
         } else {
-            switch conversionCurrency {
-            case "GBP" : return Money(amount: convertUSD(self.amount).gbp, currency: "GBP")
-            case "EUR" : return Money(amount: convertUSD(self.amount).eur, currency: "EUR")
-            case "CAN" : return Money(amount: convertUSD(self.amount).can, currency: "EUR")
-            default : return Money(amount: self.amount, currency: self.currency)
+            switch self.currency {
+                case "GBP" : switch conversionCurrency {
+                    case "EUR" : return Money(amount: Int(Double(self.amount * 2) * 1.5), currency: "EUR")
+                    case "CAN" : return Money(amount: Int(Double(self.amount * 2) * 1.25), currency: "CAN")
+                    default : return Money(amount: self.amount, currency: self.currency)
+                }
+                case "EUR" : switch conversionCurrency {
+                    case "GBP" : return Money(amount: Int((Double(self.amount) / 1.5) / 2), currency: "GBP")
+                    case "CAN" : return Money(amount: Int((Double(self.amount) / 1.5) * 1.25), currency: "CAN")
+                    default : return Money(amount: self.amount, currency: self.currency)
+                }
+                case "CAN" : switch conversionCurrency {
+                    case "GBP" : return Money(amount: Int((Double(self.amount) / 1.25) / 2), currency: "GBP")
+                    case "EUR" : return Money(amount: Int((Double(self.amount) / 1.25) * 1.5), currency: "EUR")
+                    default : return Money(amount: self.amount, currency: self.currency)
+                }
+                default : return Money(amount: self.amount, currency: self.currency)
             }
         }
     }
     
     func add(_ addVal : Money) -> Money {
-        let lhs = convert(addVal.currency)
-        let rhs = convert(addVal.currency)
-        print("lhs: ", lhs)
+        let lhs = self.amount
+        let rhs = addVal.convert("USD").amount
         print("rhs: ", rhs)
         
-        let sum = lhs.amount + rhs.amount
+        let sum = lhs + rhs
+        let money = Money(amount: sum, currency: "USD")
+        let retMoney = money.convert(addVal.currency)
         
-        return Money(amount: sum, currency: addVal.currency)
+        return retMoney
     }
     
     func subtract(_ difVal : Money) -> Money {
@@ -99,6 +132,17 @@ public class Job {
     var title : String
     var type : JobType
     
+    init(title: String) {
+        self.title = title
+        self.type = JobType.Hourly(0)
+    }
+    
+    // Can't have a job with no title, what are you doing?
+    init(type: JobType) {
+        self.title = "None"
+        self.type = JobType.Hourly(0)
+    }
+    
     init(title: String, type: JobType) {
         self.title = title
         self.type = type
@@ -107,10 +151,10 @@ public class Job {
     func calculateIncome(_ time: Int) -> Int {
         switch self.type {
             case.Hourly(let dollars):
-                return Int(dollars * Double(time))
+                return abs(Int(dollars * Double(time)))
                 
             case.Salary(let dollars):
-                return Int(dollars)
+                return abs(Int(dollars))
         }
     }
     
@@ -126,14 +170,30 @@ public class Job {
     }
     
     func raise(byPercent: Double) {
+        var timesAmt = 0.0
+        if(byPercent < 0.0) {
+            timesAmt = 0
+        } else {
+            timesAmt = byPercent
+        }
+        
         switch self.type {
             case.Hourly(let dollars):
-                let newPay = (dollars) + (dollars * byPercent)
+                let newPay = (dollars) + (dollars * timesAmt)
                 self.type = JobType.Hourly(newPay)
             case.Salary(let dollars):
-                let newPay = Double(dollars) + (Double(dollars) * byPercent)
+                let newPay = Double(dollars) + (Double(dollars) * timesAmt)
                 self.type = JobType.Salary(UInt(newPay))
         }
+    }
+    
+    func convertToSalary() {
+        switch self.type {
+        case.Hourly(let dollars):
+            self.type = JobType.Salary(UInt(dollars * 2000))
+        default: print("im already salaried")
+        }
+        
     }
     
     public func toString() -> String {
@@ -166,6 +226,18 @@ public class Person {
                 spouse = oldValue
             }
         }
+    }
+    
+    init(firstName: String) {
+        self.firstName = ""
+        self.lastName = ""
+        self.age = 0
+    }
+    
+    init(firstName: String, age: Int) {
+        self.firstName = firstName
+        self.lastName = ""
+        self.age = age
     }
     
     init(firstName: String, lastName: String, age: Int) {
@@ -212,7 +284,6 @@ public class Family {
     func householdIncome() -> Int {
         var sum = 0
         for index in 0..<self.members.count {
-            print("index \(index) has person \(self.members[index].firstName)")
             sum += self.members[index].job?.calculateIncome(2000) ?? 0
         }
         return sum
